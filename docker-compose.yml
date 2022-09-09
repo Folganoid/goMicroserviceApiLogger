@@ -1,9 +1,11 @@
 version: "3.9"
 
 volumes:
-    prometheus_data: {}
-    grafana_data: {}
+    prometheus_data:
+    ch_db:
     pgdb:
+    minio_0:
+      driver: local
 
 networks:
   back-tier:
@@ -13,7 +15,7 @@ services:
   go:
     build: ./go
     ports:
-      - "8080:8080"
+      - "8000:8000"
     networks:
       - back-tier
 
@@ -96,3 +98,40 @@ services:
       SENTRY_DB_USER: sentry
       SENTRY_DB_PASSWORD: sentry
       SENTRY_REDIS_HOST: redis    
+
+  ch:
+    build:
+        context: .
+        dockerfile: ch.Dockerfile
+        cache_from:
+            - yandex/clickhouse-server:latest
+    ports:
+        - "8123:8123"
+    volumes:
+        -  ch_db:/var/lib/clickhouse
+    networks:
+        - back-tier
+    restart: always
+    
+  tabix:
+    image: spoonest/clickhouse-tabix-web-client
+    ports:
+        - "8124:8124"
+    networks:
+        - back-tier
+    depends_on:
+        - ch
+    restart: always
+    
+  minio:
+    image: 'bitnami/minio:latest'
+    ports:
+      - '9002:9000'
+      - '9001:9001'
+    networks:
+      - back-tier
+    environment:
+      - MINIO_ROOT_USER=minio-root-user
+      - MINIO_ROOT_PASSWORD=minio-root-password
+    volumes:
+      - 'minio_0:/data-0'
